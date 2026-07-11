@@ -65,6 +65,18 @@ Tes vidéos restent sur ta machine — le dossier `videos/` est ignoré par git,
 rien de ce que tu y déposes n'est envoyé. Les résultats apparaissent dans
 `out_fit/`. Voir [`videos/README.md`](videos/README.md) pour le pas-à-pas.
 
+> 📐 **Filme bien d'abord.** Paysage, plein profil, caméra à hauteur de hanche, à
+> 2,5–4 m. Une mauvaise vidéo donne des *chiffres faux*, pas un mauvais réglage —
+> lis [`files/filming-guide.md`](files/filming-guide.md) avant de filmer. L'outil
+> t'avertit maintenant s'il n'arrive pas à distinguer ta jambe proche de l'éloignée.
+
+**Conseils personnalisés (optionnel) :** pour des conseils de hauteur de selle,
+taille de cadre et allonge adaptés à toi, copie
+[`rider.example.yaml`](rider.example.yaml) en `rider.yaml`, remplis ta
+taille/entrejambe/vélo, et ajoute `--rider rider.yaml` à la commande. Tes mesures
+restent locales (ignorées par git). Dans Claude Code, réponds juste à ses questions —
+il remplit le fichier pour toi.
+
 **Ou installe à la main** — deux options :
 
 **Avec [uv](https://docs.astral.sh/uv/) (recommandé — gère Python pour toi) :**

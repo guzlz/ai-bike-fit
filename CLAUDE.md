@@ -39,9 +39,26 @@ requirements.txt                    # pip install path (mirrors pyproject deps)
 pyproject.toml / uv.lock            # uv install path (source of truth)
 setup.ps1 / setup.sh                # one-command setup (uv + deps + ffmpeg)
 files/bikefit-research-ranges.md    # the science behind the color ranges + sources
+files/filming-guide.md              # how to film (distance/angle/height) — bilingual
+files/fit-rules.md                  # formulas behind the personalized advice (LeMond, frame, reach)
+rider.example.yaml                  # template for rider specs (copy to rider.yaml)
 videos/                             # WHERE THE USER PUTS THEIR CLIP (git-ignored, has a guide README)
 LICENSE                             # AGPL-3.0 (required by Ultralytics)
 ```
+
+**Rider specs (optional):** `--rider rider.yaml` feeds body/bike specs (height,
+inseam, bike, frame size, stem, saddle height) into personalized advice via
+`rider_advice()` (LeMond saddle height, frame-size sanity check, reach/cockpit fix
+order). The tool runs fine without it (angles only). `rider.yaml` is git-ignored
+(personal); only `rider.example.yaml` is tracked. In Claude Code, ask the user the
+questions and write `rider.yaml` yourself from `rider.example.yaml`.
+
+**Filming quality is everything.** Point users to `files/filming-guide.md` first
+(landscape, dead side-on, hip height, 2.5–4 m). `pick_side()` now prefers the NEAR
+(camera-facing) leg using limb-length + ankle-range + confidence, and the report
+warns when near/far are indistinguishable (bad camera angle). ⚠️ The near-side
+preference is validated only in logic, NOT yet on a real quality clip — verify it
+visually on a good landscape side-on video before trusting it.
 
 **User videos go in `videos/`.** When helping someone run the tool, tell them to
 drop their side-on clip there and use `--input videos/<file>`. The folder is

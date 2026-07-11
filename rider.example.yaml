@@ -1,0 +1,31 @@
+# rider.yaml — your body + bike specs for personalized bike-fit advice
+#
+# Copy this file to `rider.yaml` and fill in what you know (every field is
+# optional — the tool still runs without any of them, it just gives more
+# personalized advice with them). Then run:
+#
+#   uv run python analyze_bikefit.py --input videos/my-ride.mp4 --out out_fit --rider rider.yaml
+#
+# Tip: in Claude Code, just answer its questions — it fills this file for you.
+#
+# Ton rider.yaml — tes mesures corps + vélo pour un conseil personnalisé.
+# Copie ce fichier en `rider.yaml` et remplis ce que tu connais (tout est
+# optionnel). Astuce : dans Claude Code, réponds à ses questions — il remplit
+# ce fichier à ta place.
+
+# --- Body / Corps ---
+height_cm:        # e.g. 179   — your height / ta taille
+inseam_cm:        # e.g. 84    — floor-to-crotch inseam, barefoot / entrejambe pieds nus
+                  #              (stand against a wall, book up between the legs,
+                  #               measure floor to top of the book)
+
+# --- Bike / Vélo ---
+bike:             # e.g. "Scott Addict"  — model / modèle
+frame_size_cm:    # e.g. 56    — frame size / taille du cadre
+stem_length_mm:   # e.g. 100   — current stem length / longueur de potence actuelle
+saddle_height_mm: # e.g. 730   — BB center to saddle top along seat tube /
+                  #              du centre du pédalier au dessus de selle, le long du tube
+
+# --- Filming / Tournage ---
+camera_distance_m:  # e.g. 3   — distance from camera to bike / distance caméra→vélo
+discipline:       # road | tt | mtb   (default: road)  — leave blank for road

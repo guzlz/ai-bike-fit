@@ -26,6 +26,11 @@ out_*/
 *.webm
 !files/**/*.mp4
 
+# Personal rider specs (kept local). The rider.example.yaml template is kept.
+rider.yaml
+rider.*.yaml
+!rider.example.yaml
+
 # OS / editor
 .DS_Store
 Thumbs.db

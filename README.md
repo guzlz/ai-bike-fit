@@ -62,6 +62,17 @@ Your videos stay on your machine — the `videos/` folder is git-ignored, so not
 you drop there is ever pushed. Results appear in `out_fit/`. See
 [`videos/README.md`](videos/README.md) for a step-by-step.
 
+> 📐 **Film it right first.** Landscape, dead side-on, camera at hip height, 2.5–4 m
+> away. A bad clip gives *wrong numbers*, not a bad fit — read
+> [`files/filming-guide.md`](files/filming-guide.md) before recording. The tool now
+> warns you if it can't tell your near leg from your far leg.
+
+**Personalized advice (optional):** for saddle-height, frame-size and reach tips
+tailored to you, copy [`rider.example.yaml`](rider.example.yaml) to `rider.yaml`,
+fill in your height/inseam/bike, and add `--rider rider.yaml` to the command. Your
+specs stay local (git-ignored). In Claude Code, just answer its questions — it fills
+the file for you.
+
 **Or set it up by hand** — two options:
 
 **With [uv](https://docs.astral.sh/uv/) (recommended — handles Python for you):**

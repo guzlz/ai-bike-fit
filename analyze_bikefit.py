@@ -32,6 +32,12 @@ import numpy as np
 from ultralytics import YOLO
 
 try:
+    import yaml
+    _HAS_YAML = True
+except Exception:  # PyYAML ships with ultralytics; this is just a safety net
+    _HAS_YAML = False
+
+try:
     import supervision as sv
     _HAS_SV = True
 except Exception:  # supervision only needed for streaming frames; fall back to cv2
@@ -133,12 +139,187 @@ COLOR = {"green": GREEN, "amber": AMBER, "red": RED, "na": NEUTRAL}
 
 
 def pick_side(pts, cof):
-    """Choose the near (camera-facing) side = the one with higher mean joint
-    confidence across the clip. Returns 'left' or 'right'."""
-    def m(side):
+    """Choose the NEAR (camera-facing) side — the leg/arm we should measure.
+
+    Confidence alone is unreliable: with a window/backlight behind the rider, the
+    model can be *more* confident on the well-lit FAR limb, so we'd measure the
+    wrong (occluded, parallax-shifted) side. The near limb is physically closer to
+    a hip-height lens, so on average its bones project LARGER in pixels (longer
+    thigh + shin) and its ankle swings through a LARGER vertical range. We combine
+    those geometric cues with confidence and let the near side win.
+
+    Returns ('left'|'right', diagnostics_dict). The diagnostics let the report warn
+    when the two sides look nearly identical (a sign of a bad, non-perpendicular
+    or too-distant shot where near/far can't be told apart)."""
+    def limb_len(side):
+        # median thigh+shin length in pixels across the clip
+        hip = pts[:, KP[f"{side}_hip"]]
+        knee = pts[:, KP[f"{side}_knee"]]
+        ankle = pts[:, KP[f"{side}_ankle"]]
+        thigh = np.linalg.norm(hip - knee, axis=1)
+        shin = np.linalg.norm(knee - ankle, axis=1)
+        return np.nanmedian(thigh + shin)
+
+    def ankle_range(side):
+        ay = pts[:, KP[f"{side}_ankle"], 1]
+        ay = ay[np.isfinite(ay)]
+        return (np.nanpercentile(ay, 90) - np.nanpercentile(ay, 10)) if ay.size >= 5 else np.nan
+
+    def conf(side):
         idx = [KP[f"{side}_{j}"] for j in ("shoulder", "hip", "knee", "ankle", "elbow", "wrist")]
         return np.nanmean(cof[:, idx])
-    return "left" if m("left") >= m("right") else "right"
+
+    scores = {}
+    for s in ("left", "right"):
+        scores[s] = {"len": limb_len(s), "range": ankle_range(s), "conf": conf(s)}
+
+    # Rank each side on the three cues; the near side should win len & range.
+    def cue(a, b):  # 1 if a clearly bigger, 0 if ~equal, -1 if smaller
+        if not (np.isfinite(a) and np.isfinite(b)) or max(a, b) == 0:
+            return 0.0
+        return (a - b) / max(a, b)
+
+    L, R = scores["left"], scores["right"]
+    vote = (cue(L["len"], R["len"]) + cue(L["range"], R["range"]) + 0.5 * cue(L["conf"], R["conf"]))
+    side = "left" if vote >= 0 else "right"
+
+    # How separable are the sides? If limb lengths differ by <8%, near/far is
+    # ambiguous — likely a poor camera angle. Report it so the user can re-shoot.
+    len_sep = abs(cue(L["len"], R["len"]))
+    diag = {"vote": round(float(vote), 3), "len_separation": round(float(len_sep), 3),
+            "ambiguous": bool(len_sep < 0.08)}
+    return side, diag
+
+
+def load_rider(path):
+    """Load rider.yaml (body + bike specs). Returns {} on any problem, so the
+    tool always runs — specs only ADD personalized advice, never gate the run."""
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.exists():
+        print(f"[warn] rider file not found: {path} — running without specs.")
+        return {}
+    if not _HAS_YAML:
+        print("[warn] PyYAML not available — running without specs.")
+        return {}
+    try:
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        print(f"[warn] could not parse {path} ({e}) — running without specs.")
+        return {}
+    if not isinstance(data, dict):  # a scalar/list root would crash the filter below
+        print(f"[warn] {path} is not a key:value mapping — running without specs.")
+        return {}
+    # keep only known, non-empty fields
+    keys = ("height_cm", "inseam_cm", "bike", "frame_size_cm", "stem_length_mm",
+            "saddle_height_mm", "camera_distance_m", "discipline")
+    return {k: data[k] for k in keys if k in data and data[k] not in (None, "")}
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def rider_advice(ang, rider):
+    """Apply the fit-rules.md heuristics using rider specs. Returns a list of
+    personalized advice strings. See files/fit-rules.md for the reasoning/sources."""
+    out = []
+    if not rider:
+        return out
+
+    inseam = _num(rider.get("inseam_cm"))
+    height = _num(rider.get("height_cm"))
+    frame = _num(rider.get("frame_size_cm"))
+    stem = _num(rider.get("stem_length_mm"))
+    saddle = _num(rider.get("saddle_height_mm"))
+    bike = str(rider.get("bike") or "")
+    disc = str(rider.get("discipline") or "road").lower()
+
+    # Discipline caveat (rule 5). Match whole words only — otherwise "Scott" (has
+    # "tt") or "addict" would false-trigger the TT/tri warning.
+    import re
+    bl = bike.lower()
+    is_tt = disc in ("tt", "tri", "timetrial", "time-trial") or \
+        bool(re.search(r"\b(tt|tri|triathlon|time[ -]?trial|contre[ -]?la[ -]?montre|clm)\b", bl))
+    if is_tt:
+        out.append("Bike looks like a TT/tri setup — the GREEN ranges here are for "
+                   "ROAD position. Treat the road grading as indicative only.")
+
+    # Rule 1: LeMond saddle height from inseam
+    kf = ang.get("knee_flexion_bdc")
+    interior = (180.0 - kf) if (kf is not None and np.isfinite(kf)) else None
+    if inseam:
+        lemond = inseam * 0.883 * 10.0  # cm -> mm
+        line = f"LeMond target saddle height (inseam {inseam:.0f}cm x 0.883) ~ {lemond:.0f}mm."
+        if saddle:
+            d = saddle - lemond
+            sign = "higher" if d > 0 else "lower"
+            line += f" Your saddle {saddle:.0f}mm is {abs(d):.0f}mm {sign} than that."
+        out.append(line)
+
+    # Rule 1/2: knee angle -> saddle direction + mm (video is the source of truth).
+    # Derive thresholds from the SAME config the "fixes" section uses, so the two
+    # sections never contradict each other. Green flexion band is (lo, hi); with
+    # GREEN_TOL the raise/lower triggers sit at hi+tol / lo-tol flexion, i.e.
+    # interior 180-(hi+tol) [too bent] and 180-(lo-tol) [too straight].
+    flo, fhi, _ = ANGLE_TARGETS["knee_flexion_bdc"]        # (30, 40)
+    bent_interior = 180.0 - (fhi + GREEN_TOL)              # 137.5
+    straight_interior = 180.0 - (flo - GREEN_TOL)          # 152.5
+    tlo, thi = 180.0 - fhi, 180.0 - flo                    # green interior band 140-150
+    if interior is not None:
+        if interior < bent_interior:  # knee still too bent
+            mm = min(15, (tlo - interior) * 3.5)
+            out.append(f"Knee interior {interior:.0f}deg at bottom (target {tlo:.0f}-{thi:.0f}) = "
+                       f"too BENT -> saddle a bit LOW. Raise ~{mm:.0f}mm, then re-film.")
+        elif interior > straight_interior:  # knee too straight
+            mm = min(15, (interior - thi) * 3.5)
+            out.append(f"Knee interior {interior:.0f}deg at bottom (target {tlo:.0f}-{thi:.0f}) = "
+                       f"too STRAIGHT -> saddle a bit HIGH. Lower ~{mm:.0f}mm, then re-film.")
+
+    # Rule 3: frame size vs body
+    if height and frame:
+        # simple road band by height (cm)
+        h = height
+        band = (52, 54) if h < 175 else (54, 56) if h < 180 else (56, 58) if h < 185 else (58, 60)
+        if frame >= band[1]:
+            note = (f"Frame {frame:.0f}cm is at/above the typical top ({band[0]}-{band[1]}cm) "
+                    f"for {height:.0f}cm.")
+            tz = ang.get("torso_from_horiz")
+            sh = ang.get("shoulder_angle")
+            long_front = ((tz is not None and np.isfinite(tz) and tz < 40) or
+                          (sh is not None and np.isfinite(sh) and sh < 80))
+            if long_front:
+                note += (" Combined with a long/low front in the video, the reach is "
+                         "likely too long — see the cockpit advice below.")
+            else:
+                note += " Watch reach; brand geometry (reach/stack) matters more than the label."
+            out.append(note)
+
+    # Rule 4: cockpit / reach (front end) — torso + shoulder + elbow together
+    tz = ang.get("torso_from_horiz")
+    sh = ang.get("shoulder_angle")
+    eb = ang.get("elbow_flexion")
+    flags = 0
+    if tz is not None and np.isfinite(tz) and tz < 40:
+        flags += 1
+    if sh is not None and np.isfinite(sh) and sh < 80:
+        flags += 1
+    if eb is not None and np.isfinite(eb) and (eb > 30 or eb < 8):
+        flags += 1
+    if flags >= 2:
+        msg = ("Front end looks too LONG/LOW (stretched torso, closed shoulder, "
+               "reaching arms). Fix in order, one at a time: 1) raise the bars "
+               "(spacers under->over the stem, or a +angle stem); 2) shorter stem")
+        if stem:
+            msg += f" (yours is {stem:.0f}mm -> try {max(70, stem-20):.0f}-{max(80, stem-10):.0f}mm)"
+        msg += "; 3) only then adjust saddle height."
+        out.append(msg)
+
+    return out
 
 
 def main():
@@ -159,7 +340,12 @@ def main():
         "force a joint's color, e.g. 'knee_flexion_bdc=amber'. Use when the clip was "
         "reshot after a known change so it reflects the rider's real prior setup. "
         "Recorded in the report as a manual override, not a measurement."))
+    ap.add_argument("--rider", default=None, help=(
+        "path to rider.yaml (body + bike specs) for personalized advice. Optional — "
+        "without it the tool reports angles only. See rider.example.yaml."))
     args = ap.parse_args()
+
+    rider = load_rider(args.rider)
 
     out = Path(args.out)
     (out / "stills").mkdir(parents=True, exist_ok=True)
@@ -186,7 +372,12 @@ def main():
     pts = np.stack(xy_list)
     cof = np.stack(cf_list)
     N = len(pts)
-    side = pick_side(pts, cof)
+    side, side_diag = pick_side(pts, cof)
+    if side_diag["ambiguous"]:
+        print(f"[warn] near/far side hard to tell apart (limb-length separation "
+              f"{side_diag['len_separation']:.0%}). The camera may not be square to "
+              f"the bike, too far, or too high — see files/filming-guide.md. Angles "
+              f"may be measured on the wrong (far) leg.")
 
     def P(joint, i):
         return pts[i, KP[f"{side}_{joint}"]]
@@ -290,13 +481,20 @@ def main():
                 verdicts[k] = val
 
     # Adjustment logic for the money angles.
+    # Note on wording: knee_flexion_bdc is FLEXION (180 - interior knee angle). A
+    # HIGH flexion number means the knee is still very BENT at the bottom, i.e. the
+    # leg is not extending enough -> saddle too LOW. (Earlier phrasing said "too
+    # straight" here, which was backwards; the direction "raise" was right.)
     fixes = []
     kf = ang["knee_flexion_bdc"]
     if np.isfinite(kf):
+        interior = 180.0 - kf
         if kf > 42:
-            fixes.append(f"Knee {kf:.0f}deg at bottom (target 30-40) -> saddle TOO LOW. Raise saddle ~{min(20, (kf-40)*2):.0f}mm.")
+            fixes.append(f"Knee still BENT at bottom (interior {interior:.0f}deg, flexion {kf:.0f}; "
+                         f"target interior 140-148) -> saddle TOO LOW. Raise saddle ~{min(20, (kf-40)*3):.0f}mm.")
         elif kf < 28:
-            fixes.append(f"Knee {kf:.0f}deg at bottom (target 30-40) -> saddle TOO HIGH. Lower saddle ~{min(20,(30-kf)*2):.0f}mm.")
+            fixes.append(f"Knee TOO STRAIGHT at bottom (interior {interior:.0f}deg, flexion {kf:.0f}; "
+                         f"target interior 140-148) -> saddle TOO HIGH. Lower saddle ~{min(20,(30-kf)*3):.0f}mm.")
     tz = ang["torso_from_horiz"]
     if np.isfinite(tz):
         if tz > 56:
@@ -398,21 +596,39 @@ def main():
         playable = overlay_path  # ffmpeg missing -> fall back to the mp4v file
         print(f"[warn] H.264 re-encode failed ({e}); play {overlay_path}")
 
+    # Personalized advice from rider specs (empty if no --rider given).
+    personalized = rider_advice({k: (v if np.isfinite(v) else None) for k, v in ang.items()}, rider)
+
     report = {
         "input": args.input, "side_measured": side, "bdc_frame": bdc,
         "riding_frames": n_riding, "bottom_band_frames": n_bottom,
         "overall": overall, "angles": {k: (round(v, 1) if np.isfinite(v) else None) for k, v in ang.items()},
         "verdicts": verdicts, "fixes": fixes,
         "manual_overrides": overrides,
+        "rider": rider, "personalized_advice": personalized,
+        "side_diagnostics": side_diag,
     }
     (out / "report.json").write_text(json.dumps(report, indent=2))
     md = ["# Bike fit report", f"- Input: `{args.input}` (measured {side} side, BDC frame {bdc})",
-          f"- Overall: **{overall}**", "", "## Angles (deg) vs target"]
+          f"- Overall: **{overall}**"]
+    if side_diag["ambiguous"]:
+        md.append("- ⚠️ **Camera-angle warning:** near and far leg look almost the same "
+                  "size, so the tool may have measured the wrong (far) leg. Re-film "
+                  "square to the bike, at hip height — see `files/filming-guide.md`.")
+    if rider:
+        specs = ", ".join(f"{k}={v}" for k, v in rider.items())
+        md.append(f"- Rider specs: {specs}")
+    md += ["", "## Angles (deg) vs target"]
     for k, v in ang.items():
         lo, hi, _ = ANGLE_TARGETS[k]
         val = f"{v:.0f}" if np.isfinite(v) else "n/a"
         md.append(f"- {k}: **{val}** (target {lo:.0f}-{hi:.0f}) -> {verdicts[k].upper()}")
     md += ["", "## Do this"] + [f"- {f}" for f in fixes]
+    if personalized:
+        md += ["", "## Personalized advice (from your specs)"] + [f"- {a}" for a in personalized]
+    elif not rider:
+        md += ["", "_Tip: pass `--rider rider.yaml` (see rider.example.yaml) for personalized "
+               "saddle-height, frame-size and reach advice._"]
     (out / "report.md").write_text("\n".join(md))
     print("\n".join(md))
     print(f"\n[done] overlay (play this): {playable}  |  stills: {out/'stills'}")

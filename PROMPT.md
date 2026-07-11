@@ -109,12 +109,29 @@ yes.
 Answer me in English throughout.
 
 This repo is an AI bike-fit tool. Set it up for me (install dependencies with uv or
-pip, and ffmpeg if it's missing). Then tell me exactly where to put my video: I'll
-drop my side-on pedaling clip into the repo's `videos/` folder. Once it's there,
-run analyze_bikefit.py with --input videos/<my-file> and explain the report in plain
-English - what's dialed and what to change first (mainly saddle height and reach).
-If I'm not sure how to get my phone video onto the computer or into that folder,
-walk me through it step by step.
+pip, and ffmpeg if it's missing).
+
+Before we analyze anything, do two things:
+
+1. FILMING: Read files/filming-guide.md and give me the short version of how to film
+   a good clip (landscape, side-on, hip height, good light, don't send via WhatsApp).
+   Then tell me exactly where to put my video: I'll drop my side-on pedaling clip
+   into the repo's videos/ folder. If I'm not sure how to get my phone video onto
+   the computer or into that folder, walk me through it step by step.
+
+2. MY SPECS: Ask me, one question at a time, for my body + bike specs, and write
+   them into a rider.yaml file yourself (use rider.example.yaml as the template — I
+   should NOT have to edit any file). Ask for: my height, my inseam (explain how to
+   measure it), my bike model, frame size, current stem length, saddle height if I
+   know it, roughly how far the camera was, and whether it's a road or TT bike. If I
+   don't know a value, leave it blank and move on.
+
+Then run: analyze_bikefit.py --input videos/<my-file> --out out_fit --rider rider.yaml
+
+Finally, read files/fit-rules.md so your advice matches the tool's logic, show me
+the overlay image at the bottom of the stroke, and explain the report in plain
+English - what's dialed and what to change FIRST (usually one thing: saddle height
+OR reach). Be honest about the limits (2D video = starting point, not a pro fit).
 ```
 
 Or run it yourself — see the [README](README.md#-the-manual-way--run-it-yourself).
@@ -222,12 +239,34 @@ simplement et je dirai oui.
 Réponds-moi en français tout du long.
 
 Ce dépôt est un outil de bike fit par IA. Installe-le pour moi (les dépendances
-avec uv ou pip, et ffmpeg s'il manque). Puis dis-moi exactement où mettre ma vidéo :
-je déposerai ma vidéo de pédalage de profil dans le dossier `videos/` du dépôt. Une
-fois qu'elle y est, lance analyze_bikefit.py avec --input videos/<mon-fichier> et
-explique-moi le rapport en langage simple - ce qui est bien réglé et quoi changer en
-premier (surtout hauteur de selle et allonge). Si je ne sais pas comment transférer
-ma vidéo du téléphone vers l'ordinateur ou dans ce dossier, guide-moi pas à pas.
+avec uv ou pip, et ffmpeg s'il manque).
+
+Avant toute analyse, fais deux choses :
+
+1. TOURNAGE : Lis files/filming-guide.md et donne-moi la version courte de comment
+   bien filmer (paysage, plein profil, hauteur de hanche, caméra perpendiculaire au
+   vélo, bonne lumière, ne PAS envoyer via WhatsApp). Insiste sur distance (2,5-4 m),
+   angle (parfaitement perpendiculaire) et hauteur (à hauteur de hanche/pédalier) —
+   c'est ce qui décide si l'outil mesure la bonne jambe. Puis dis-moi exactement où
+   mettre ma vidéo : je la déposerai dans le dossier videos/ du dépôt. Si je ne sais
+   pas comment transférer ma vidéo du téléphone, guide-moi pas à pas.
+
+2. MES MESURES : Pose-moi les questions une par une pour mes mesures corps + vélo, et
+   écris-les toi-même dans un fichier rider.yaml (utilise rider.example.yaml comme
+   modèle — je ne dois éditer AUCUN fichier). Demande : ma taille, mon entrejambe
+   (explique comment le mesurer), mon modèle de vélo, la taille du cadre, la longueur
+   de potence actuelle, la hauteur de selle si je la connais, à peu près la distance
+   de la caméra, et si c'est un vélo de route ou de CLM. Si je ne connais pas une
+   valeur, laisse vide et continue.
+
+Puis lance : analyze_bikefit.py --input videos/<mon-fichier> --out out_fit --rider rider.yaml
+
+Enfin, lis files/fit-rules.md pour que tes conseils collent à la logique de l'outil,
+montre-moi l'image du bas du coup de pédale, et explique-moi le rapport en langage
+simple - ce qui est bien réglé et quoi changer EN PREMIER (une seule chose : hauteur
+de selle OU allonge). Sois honnête sur les limites (vidéo 2D = point de départ, pas
+un fit pro). Si le rapport affiche un avertissement sur l'angle caméra, dis-moi de
+refilmer.
 ```
 
 Ou lance-le toi-même — voir le [README français](README.fr.md#-la-méthode-manuelle--lance-le-toi-même).
