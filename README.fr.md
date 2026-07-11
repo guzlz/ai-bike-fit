@@ -54,7 +54,16 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 bash setup.sh
 ```
 
-Puis lance : `uv run python analyze_bikefit.py --input ma-video.mov --out out_fit`
+**Ensuite — où mettre ma vidéo ?** Dépose ta vidéo dans le **dossier `videos/`** du
+projet, donne-lui un nom simple (ex. `ma-video.mp4`), et pointe `--input` dessus :
+
+```bash
+uv run python analyze_bikefit.py --input videos/ma-video.mp4 --out out_fit
+```
+
+Tes vidéos restent sur ta machine — le dossier `videos/` est ignoré par git, donc
+rien de ce que tu y déposes n'est envoyé. Les résultats apparaissent dans
+`out_fit/`. Voir [`videos/README.md`](videos/README.md) pour le pas-à-pas.
 
 **Ou installe à la main** — deux options :
 
@@ -64,7 +73,7 @@ Puis lance : `uv run python analyze_bikefit.py --input ma-video.mov --out out_fi
 git clone https://github.com/guzlz/ai-bike-fit.git
 cd ai-bike-fit
 uv sync
-uv run python analyze_bikefit.py --input ma-video.mov --out out_fit
+uv run python analyze_bikefit.py --input videos/ma-video.mp4 --out out_fit
 ```
 
 **Avec pip :**
@@ -78,7 +87,7 @@ pip install torch torchvision                                              # CPU
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # GPU NVIDIA
 
 pip install -r requirements.txt
-python analyze_bikefit.py --input ma-video.mov --out out_fit
+python analyze_bikefit.py --input videos/ma-video.mp4 --out out_fit
 ```
 
 > **Il te faut aussi [ffmpeg](https://ffmpeg.org/) dans ton PATH :**
@@ -93,7 +102,7 @@ Si ta vidéo contient la montée/descente du vélo aux extrémités, découpe la
 de pédalage :
 
 ```bash
-python analyze_bikefit.py --input ma-video.mov --out out_fit --start 5 --end 35
+python analyze_bikefit.py --input videos/ma-video.mp4 --out out_fit --start 5 --end 35
 ```
 
 ---

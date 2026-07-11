@@ -39,8 +39,15 @@ requirements.txt                    # pip install path (mirrors pyproject deps)
 pyproject.toml / uv.lock            # uv install path (source of truth)
 setup.ps1 / setup.sh                # one-command setup (uv + deps + ffmpeg)
 files/bikefit-research-ranges.md    # the science behind the color ranges + sources
+videos/                             # WHERE THE USER PUTS THEIR CLIP (git-ignored, has a guide README)
 LICENSE                             # AGPL-3.0 (required by Ultralytics)
 ```
+
+**User videos go in `videos/`.** When helping someone run the tool, tell them to
+drop their side-on clip there and use `--input videos/<file>`. The folder is
+git-ignored (only `videos/README.md` is tracked), so their footage never gets
+pushed. If they don't know how to move a phone video into the folder, walk them
+through it.
 
 ## Stack & environment
 

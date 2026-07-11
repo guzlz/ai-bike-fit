@@ -109,9 +109,12 @@ yes.
 Answer me in English throughout.
 
 This repo is an AI bike-fit tool. Set it up for me (install dependencies with uv or
-pip, and ffmpeg if it's missing), then run analyze_bikefit.py on the video I'm about
-to give you and explain the report in plain English - what's dialed and what to
-change first (mainly saddle height and reach).
+pip, and ffmpeg if it's missing). Then tell me exactly where to put my video: I'll
+drop my side-on pedaling clip into the repo's `videos/` folder. Once it's there,
+run analyze_bikefit.py with --input videos/<my-file> and explain the report in plain
+English - what's dialed and what to change first (mainly saddle height and reach).
+If I'm not sure how to get my phone video onto the computer or into that folder,
+walk me through it step by step.
 ```
 
 Or run it yourself — see the [README](README.md#-the-manual-way--run-it-yourself).
@@ -219,9 +222,12 @@ simplement et je dirai oui.
 Réponds-moi en français tout du long.
 
 Ce dépôt est un outil de bike fit par IA. Installe-le pour moi (les dépendances
-avec uv ou pip, et ffmpeg s'il manque), puis lance analyze_bikefit.py sur la vidéo
-que je vais te donner et explique-moi le rapport en langage simple - ce qui est
-bien réglé et quoi changer en premier (surtout hauteur de selle et allonge).
+avec uv ou pip, et ffmpeg s'il manque). Puis dis-moi exactement où mettre ma vidéo :
+je déposerai ma vidéo de pédalage de profil dans le dossier `videos/` du dépôt. Une
+fois qu'elle y est, lance analyze_bikefit.py avec --input videos/<mon-fichier> et
+explique-moi le rapport en langage simple - ce qui est bien réglé et quoi changer en
+premier (surtout hauteur de selle et allonge). Si je ne sais pas comment transférer
+ma vidéo du téléphone vers l'ordinateur ou dans ce dossier, guide-moi pas à pas.
 ```
 
 Ou lance-le toi-même — voir le [README français](README.fr.md#-la-méthode-manuelle--lance-le-toi-même).

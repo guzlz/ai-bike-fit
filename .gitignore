@@ -17,10 +17,13 @@ env/
 # Analyzer outputs
 out_*/
 */stills/
+
+# User videos (kept local — never pushed). The videos/README.md guide is kept.
 *.mp4
 *.mov
 *.avi
 *.mkv
+*.webm
 !files/**/*.mp4
 
 # OS / editor
