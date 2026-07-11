@@ -1,5 +1,8 @@
 # Third-party notices
 
+*This legal notice is maintained in English (the standard for license documents).
+README: [🇬🇧 English](README.md) · [🇫🇷 Français](README.fr.md).*
+
 AI Bike Fit is licensed under **AGPL-3.0** (see [`LICENSE`](LICENSE)).
 
 This repository contains only its own source code, documentation, and

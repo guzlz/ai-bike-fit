@@ -1,5 +1,7 @@
 # 🚲 AI Bike Fit
 
+**🌍 Language / Langue : 🇬🇧 English (this page) · [🇫🇷 Français](README.fr.md)**
+
 **Grade your own road bike fit with AI — for free.**
 
 Film yourself pedaling on a trainer, and this tool grades your bike fit like a
@@ -41,7 +43,7 @@ For those comfortable with a terminal.
 **One-command setup** (installs uv, all dependencies, and ffmpeg for you):
 
 ```bash
-git clone https://github.com/<your-username>/ai-bike-fit.git
+git clone https://github.com/guzlz/ai-bike-fit.git
 cd ai-bike-fit
 # Windows:
 powershell -ExecutionPolicy Bypass -File setup.ps1
@@ -56,7 +58,7 @@ Then run: `uv run python analyze_bikefit.py --input my-ride.mov --out out_fit`
 **With [uv](https://docs.astral.sh/uv/) (recommended — handles Python for you):**
 
 ```bash
-git clone https://github.com/<your-username>/ai-bike-fit.git
+git clone https://github.com/guzlz/ai-bike-fit.git
 cd ai-bike-fit
 uv sync
 uv run python analyze_bikefit.py --input my-ride.mov --out out_fit
@@ -65,7 +67,7 @@ uv run python analyze_bikefit.py --input my-ride.mov --out out_fit
 **With pip:**
 
 ```bash
-git clone https://github.com/<your-username>/ai-bike-fit.git
+git clone https://github.com/guzlz/ai-bike-fit.git
 cd ai-bike-fit
 
 # Install PyTorch (pick one):
