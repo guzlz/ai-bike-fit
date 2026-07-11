@@ -1,0 +1,30 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# YOLO pose model weights (auto-downloaded on first run, ~113MB / ~6MB)
+*.pt
+
+# Analyzer outputs
+out_*/
+*/stills/
+*.mp4
+*.mov
+*.avi
+*.mkv
+!files/**/*.mp4
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,12 @@
+[project]
+name = "bikefit"
+version = "0.1.0"
+description = "Analyse de bikefit par estimation de pose (YOLO11-pose + supervision)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.1",
+    "opencv-python>=5.0.0.93",
+    "supervision>=0.29.1",
+    "ultralytics>=8.4.92",
+]

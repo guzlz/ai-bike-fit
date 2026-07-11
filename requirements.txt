@@ -1,0 +1,14 @@
+# Bike-fit analyzer dependencies (managed by uv; this file mirrors them for
+# users who install with pip instead).
+#
+# Install PyTorch first (choose CPU or CUDA build), then the rest:
+#   CPU:  pip install torch torchvision
+#   CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements.txt
+#
+# You also need ffmpeg on your PATH (winget install Gyan.FFmpeg / brew install ffmpeg).
+
+ultralytics>=8.4
+supervision>=0.29
+opencv-python>=4.9
+numpy>=1.26
