@@ -31,12 +31,20 @@ Tu ne télécharges rien, ne crées aucun dossier, n'écris aucun code.
 terminal) fait tout à ta place.
 
 1. Installe Claude Code.
-2. Ouvre-le dans un dossier vide.
-3. Colle le prompt depuis [`PROMPT.md`](PROMPT.md) (version française disponible) et envoie-le.
-4. Donne-lui ta vidéo quand il la demande.
+2. Clone ce dépôt et ouvre Claude Code dans le dossier :
+   `git clone https://github.com/guzlz/ai-bike-fit.git` puis `cd ai-bike-fit`.
+3. Dis-lui simplement, avec tes mots : **« analyse mon bike fit »** (ou « regarde
+   ma position », « j'ai mal au dos à vélo, aide-moi »…).
 
-Il te guide pas à pas dans toute la procédure. **C'est la voie recommandée si tu
+C'est tout. Il **démarre automatiquement** le protocole guidé : il te dit comment
+filmer, te demande tes mesures vélo + corps, installe tout, lance l'analyse, et
+t'explique tes résultats en langage simple — une étape à la fois. **C'est LUI qui
+te guide** : tu n'as qu'à suivre ses instructions et répondre à ses questions, tu
+ne décides de rien et ne tapes aucune commande. **C'est la voie recommandée si tu
 n'es pas technique.**
+
+*(Avancé : tu peux taper `/bikefit` pour lancer le même protocole explicitement, ou
+coller le prompt de [`PROMPT.md`](PROMPT.md) — mais ce n'est pas nécessaire.)*
 
 ### 🔧 La méthode manuelle — lance-le toi-même
 

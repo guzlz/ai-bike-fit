@@ -29,12 +29,18 @@ You don't download anything, make folders, or write code. [Claude Code](https://
 (the free coding agent in your terminal) does all of it.
 
 1. Install Claude Code.
-2. Open it in an empty folder.
-3. Paste the prompt from [`PROMPT.md`](PROMPT.md) and send it.
-4. Give it your video when it asks.
+2. Clone this repo and open Claude Code inside the folder:
+   `git clone https://github.com/guzlz/ai-bike-fit.git` then `cd ai-bike-fit`.
+3. Just tell it, in your own words: **"analyze my bike fit"** (or "check my
+   position", "j'ai mal au dos à vélo, aide-moi"…).
 
-It walks you through the whole thing one step at a time. **This is the recommended
-path if you're not technical.**
+That's it. It **automatically** starts the guided protocol: it tells you how to
+film, asks for your bike + body specs, sets everything up, runs the analysis, and
+explains your results in plain language — one step at a time. You never need to
+know any commands. **This is the recommended path if you're not technical.**
+
+*(Advanced: you can type `/bikefit` to launch the same protocol explicitly, or
+paste the prompt from [`PROMPT.md`](PROMPT.md) — but you don't have to.)*
 
 ### 🔧 The manual way — run it yourself
 
