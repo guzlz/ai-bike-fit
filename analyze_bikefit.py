@@ -43,6 +43,16 @@ try:
 except Exception:  # supervision only needed for streaming frames; fall back to cv2
     _HAS_SV = False
 
+# New measurement modules (bike-part detection + the extra fit metrics). Optional:
+# if either import fails the tool still produces the original 5-angle report.
+try:
+    import bike_calib
+    import fit_metrics
+    _HAS_METRICS = True
+except Exception as _e:
+    _HAS_METRICS = False
+    print(f"[warn] extra metrics unavailable ({_e}); running angle-only.")
+
 KP = {
     "nose": 0, "left_shoulder": 5, "right_shoulder": 6, "left_elbow": 7,
     "right_elbow": 8, "left_wrist": 9, "right_wrist": 10, "left_hip": 11,
@@ -58,7 +68,15 @@ ANGLE_TARGETS = {
     "elbow_flexion":    (15.0, 30.0, 8.0),   # ~0 = locked out
     "shoulder_angle":   (80.0, 95.0, 10.0),
     "hip_angle_top":    (85.0, 110.0, 999.0),  # report only (amber_pad huge = never red)
+    # --- report-only extras (huge amber_pad -> never red -> never gate the verdict) ---
+    "knee_int_tdc":     (65.0, 80.0, 999.0),  # knee at top of stroke; <58 packed (saddle low/crank long)
+    "knee_rom":         (68.0, 82.0, 999.0),  # BDC->TDC sweep; derived, +/-4-5deg, corroborator
+    "rock_pct_femur":   (0.0, 2.5, 999.0),    # vertical hip rock as % femur; >4% saddle likely high
+    "kops_mm":          (-40.0, 10.0, 999.0),  # knee vs spindle; + = knee ahead; reference not law
+    "drop_mm":          (20.0, 80.0, 999.0),  # saddle->bar drop (indicative, proxy-biased)
 }
+# Metrics that are NEVER graded/gated -- pure context in the report.
+REPORT_ONLY = {"hip_angle_top", "knee_int_tdc", "knee_rom", "rock_pct_femur", "kops_mm", "drop_mm"}
 
 # BGR
 GREEN = (90, 210, 90)
@@ -213,7 +231,10 @@ def load_rider(path):
         return {}
     # keep only known, non-empty fields
     keys = ("height_cm", "inseam_cm", "bike", "frame_size_cm", "stem_length_mm",
-            "saddle_height_mm", "camera_distance_m", "discipline")
+            "saddle_height_mm", "camera_distance_m", "discipline",
+            # new (all optional): scale + reach inputs, flagged as assumed if absent
+            "tire_width_mm", "crank_len_mm", "arm_length_cm", "torso_length_cm",
+            "frame_reach_mm", "frame_stack_mm")
     return {k: data[k] for k in keys if k in data and data[k] not in (None, "")}
 
 
@@ -322,6 +343,113 @@ def rider_advice(ang, rider):
     return out
 
 
+def extra_measurements_md(ang, verdicts, metrics, cal):
+    """Render the new side-on measurements as plain-language report lines with honest
+    caveats. Everything here is context, not a verdict -- see REPORT_ONLY."""
+    md = ["", "## Extra measurements (2D side-on — context only, don't gate the fit)"]
+
+    # Calibration quality gates whether cm/mm numbers are trustworthy.
+    qflag = cal.quality_flag if cal is not None else "suppress"
+    if cal is not None:
+        conf = cal.confidence
+        tag = {"ok": "reliable", "indicative": "INDICATIVE (see caveats)",
+               "suppress": "UNRELIABLE — cm numbers hidden"}[qflag]
+        md.append(f"- **Scale calibration:** {tag} (confidence {conf:.0%}). "
+                  f"{'Wheel + crank scales agree.' if qflag=='ok' else ''}")
+        for n in cal.notes:
+            md.append(f"  - _{n}_")
+    show_cm = qflag != "suppress"
+    ind = " _(indicative)_" if qflag == "indicative" else ""
+
+    # KOPS / setback
+    k = metrics.get("kops")
+    if isinstance(k, dict):
+        if k.get("kops_mm") is not None and show_cm:
+            mm = k["kops_mm"]
+            where = "ahead of" if mm > 0 else "behind"
+            md.append(f"- **Saddle setback (KOPS):** knee is **{abs(mm):.0f} mm {where}** the "
+                      f"pedal spindle at 3 o'clock{ind} → {verdicts.get('kops_mm','na').upper()}. "
+                      f"Positive = knee ahead (saddle forward). KOPS is a loose reference, "
+                      f"not a rule — it does not gate the fit.")
+            md.append("  - _On anterior (front) knee pain & fore/aft: force studies "
+                      "(Bini & Hume 2012; Menard 2018) find moving the saddle fore/aft "
+                      "barely changes kneecap load (1–4%), and a **rearward** saddle raises "
+                      "knee shear/compression more. So if moving the saddle **forward** eased "
+                      "your front-knee pain, that relief is most likely **reach-driven** "
+                      "(shorter effective reach), not a setback effect — keep what stopped the "
+                      "pain and treat KOPS as informational._")
+        elif k.get("note"):
+            md.append(f"- **Saddle setback (KOPS):** {k['note']}")
+
+    # Knee ROM
+    r = metrics.get("knee_rom")
+    if isinstance(r, dict):
+        bits = []
+        if r.get("knee_int_bdc") is not None:
+            bits.append(f"BDC {r['knee_int_bdc']:.0f}°")
+        if r.get("knee_int_tdc") is not None:
+            unc = " (uncertain — leg foreshortened/occluded at top)" if r.get("tdc_uncertain") else ""
+            bits.append(f"TDC {r['knee_int_tdc']:.0f}°{unc}")
+        if r.get("knee_rom") is not None:
+            bits.append(f"sweep {r['knee_rom']:.0f}° (±4-5°, derived)")
+        if bits:
+            md.append(f"- **Knee range of motion:** {', '.join(bits)}. "
+                      f"A very closed knee at the top (<58°) hints saddle too low or crank too "
+                      f"long; corroborates BDC, doesn't override it.")
+
+    # Pelvic rock
+    p = metrics.get("rock")
+    if isinstance(p, dict):
+        pct = p.get("rock_pct_femur")
+        mm = p.get("rock_mm")
+        if pct is not None:
+            floor = " (below the ~12 mm noise floor — treat as zero)" if p.get("below_noise_floor") else ""
+            mmpart = f", ~{mm:.0f} mm{ind}" if (mm is not None and show_cm) else ""
+            md.append(f"- **Pelvic rock (vertical):** {pct:.1f}% of femur{mmpart}{floor} → "
+                      f"{verdicts.get('rock_pct_femur','na').upper()}. Big vertical rock (>4%) "
+                      f"suggests saddle too high. ⚠️ True side-to-side rock needs a **rear-view** "
+                      f"clip — this only sees vertical.")
+
+    # Bar drop
+    d = metrics.get("drop")
+    if isinstance(d, dict) and d.get("drop_mm") is not None and show_cm:
+        mm = d["drop_mm"]
+        rel = "below" if mm > 0 else "above"
+        md.append(f"- **Handlebar drop (effective):** bars ~**{abs(mm):.0f} mm {rel}** the saddle "
+                  f"region{ind}. Proxy-based (hip joint ≈ saddle), so trust it as a *relative* "
+                  f"number between reshoots and defer to the torso angle above.")
+
+    # Hoods reach
+    rc = metrics.get("reach")
+    if isinstance(rc, dict):
+        line = "- **Cockpit reach:** "
+        parts = []
+        if rc.get("reach_ratio") is not None:
+            parts.append(f"arm/torso ratio **{rc['reach_ratio']:.2f}** (scale-free, compare between clips)")
+        if rc.get("reach_delta_mm") is not None and show_cm:
+            dm = rc["reach_delta_mm"]
+            sign = "longer than" if dm > 0 else "shorter than"
+            assumed = " _(body dims assumed — set arm/torso in specs)_" if rc.get("body_assumed") else ""
+            parts.append(f"bike front ≈ **{abs(dm):.0f} mm {sign}** your comfy reach{ind}{assumed}")
+        if parts:
+            md.append(line + "; ".join(parts) + ".")
+
+    # Ankle angle — honest refusal
+    a = metrics.get("ankle")
+    if isinstance(a, dict) and not a.get("available", True):
+        md.append(f"- **Ankle / foot angle:** not measured — {a.get('reason','')}")
+
+    # The honesty block: what a side view fundamentally can't do.
+    md += ["", "### What a side-on video can't measure (get these checked another way)",
+           "- **Left/right symmetry** — needs clips of *both* sides.",
+           "- **True pelvic rock, knee tracking (valgus/varus), cleat/stance width** — need a "
+           "**rear or front** view.",
+           "- **Ankle/foot angle** — needs a foot-keypoint model.",
+           "- These 2D numbers are a great starting point, **not** a 3D pro fit or medical advice. "
+           "For persistent pain, see a professional fitter."]
+    return md
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True)
@@ -355,8 +483,17 @@ def main():
     pose = YOLO(args.model)
 
     # ---- Pass 1: joints per frame ----
-    xy_list, cf_list = [], []
-    for frame in frames(work):
+    # Also stash ~1 frame every 0.4s for the wheel detector (wheels don't move, so a
+    # handful of frames is plenty and keeps memory low even on a 4K clip).
+    xy_list, cf_list, wheel_frames = [], [], []
+    frame_hw = None
+    fps_pre = float(sv.VideoInfo.from_video_path(work).fps) if _HAS_SV else 30.0
+    keep_every = max(1, int(round(fps_pre * 0.4)))
+    for fi, frame in enumerate(frames(work)):
+        if frame_hw is None:
+            frame_hw = frame.shape[:2]
+        if _HAS_METRICS and fi % keep_every == 0 and len(wheel_frames) < 40:
+            wheel_frames.append(frame)
         r = pose(frame, conf=args.conf, verbose=False, device=args.device)[0]
         fxy = np.full((17, 2), np.nan, np.float32)
         fcf = np.zeros(17, np.float32)
@@ -466,6 +603,45 @@ def main():
     _per = [measure(i) for i in cand]
     ang = {k: float(np.nanmedian([p[k] for p in _per])) if np.any(np.isfinite([p[k] for p in _per]))
            else np.nan for k in _per[0]}
+
+    # ---- Extra measurements (calibration + KOPS/ROM/rock/drop/reach) ----
+    # All optional and report-only: they add context and NEVER change the verdict
+    # (only the 5 core angles gate it). Fully skipped if the modules didn't import.
+    cal = None
+    metrics = {}
+    if _HAS_METRICS:
+        H, W = frame_hw if frame_hw else (720, 1280)
+        try:
+            cal = bike_calib.calibrate(pts, cof, side, ride, KP, wheel_frames, H, W, rider)
+        except Exception as e:
+            print(f"[warn] calibration failed ({e}); cm-based metrics skipped.")
+        # BDC interior knee angle (median across the band) feeds knee ROM.
+        knee_int_bdc = float(np.nanmedian(knee_int[cand])) if len(cand) else float("nan")
+        # Frame geometry for the cm reach estimate comes from rider.yaml (any bike),
+        # NOT hard-coded -- absent -> only the scale-free ratio is reported.
+        geom = {"frame_reach_mm": _num(rider.get("frame_reach_mm")),
+                "frame_stack_mm": _num(rider.get("frame_stack_mm"))}
+        if cal is not None:
+            try:
+                metrics["kops"] = fit_metrics.kops(pts, cof, side, ride, KP, cal)
+                metrics["knee_rom"] = fit_metrics.knee_rom(pts, cof, side, ride, KP, cal, knee_int_bdc)
+                metrics["rock"] = fit_metrics.pelvic_rock(pts, cof, side, ride, KP, cal, fps_guess)
+                metrics["drop"] = fit_metrics.bar_drop(pts, cof, side, ride, KP, cal)
+                metrics["reach"] = fit_metrics.hoods_reach(pts, cof, side, ride, KP, cal, rider, geom)
+            except Exception as e:
+                print(f"[warn] a metric failed ({e}); continuing with the rest.")
+        metrics["ankle"] = fit_metrics.ankle_angle()
+        # Fold the graded extras into `ang` so they render in the angle table + overlay.
+        for mkey, akey in (("kops", "kops_mm"), ("drop", "drop_mm")):
+            if isinstance(metrics.get(mkey), dict) and metrics[mkey].get(akey) is not None:
+                ang[akey] = float(metrics[mkey][akey])
+        if isinstance(metrics.get("knee_rom"), dict):
+            for akey in ("knee_int_tdc", "knee_rom"):
+                if metrics["knee_rom"].get(akey) is not None:
+                    ang[akey] = float(metrics["knee_rom"][akey])
+        if isinstance(metrics.get("rock"), dict) and metrics["rock"].get("rock_pct_femur") is not None:
+            ang["rock_pct_femur"] = float(metrics["rock"]["rock_pct_femur"])
+
     verdicts = {k: verdict(k, v) for k, v in ang.items()}
 
     # Manual color override (--override knee_flexion_bdc=amber). For when a clip was
@@ -507,9 +683,11 @@ def main():
     if not fixes:
         fixes.append("All key angles in range. Dialed fit.")
 
-    # Hip angle is report-only (flexibility-dependent, huge amber_pad), so it doesn't
-    # gate the overall verdict -- only the true fit angles do.
-    graded = {k: v for k, v in verdicts.items() if ANGLE_TARGETS[k][2] < 900}
+    # Only the core fit angles gate the verdict. Report-only metrics (hip angle + all
+    # the new KOPS/ROM/rock/drop extras, flagged by REPORT_ONLY / huge amber_pad) add
+    # context but never turn the fit red -- keeps the new signals from crying wolf.
+    graded = {k: v for k, v in verdicts.items()
+              if k not in REPORT_ONLY and ANGLE_TARGETS[k][2] < 900}
     overall = "GREEN - dialed" if all(v in ("green", "na") for v in graded.values()) \
         else ("RED - fix needed" if "red" in graded.values() else "AMBER - close")
 
@@ -548,6 +726,24 @@ def main():
             if p:
                 cv2.circle(s, p, 7, (0, 0, 0), -1, cv2.LINE_AA)
                 cv2.circle(s, p, 5, COLOR[verdicts.get(name, "na")], -1, cv2.LINE_AA)
+        # Calibration markers -- so the detected BB, pedal orbit and wheels can be
+        # eyeballed for correctness. Draw markers ONLY when calibration is trusted --
+        # a mis-placed BB/orbit circle on a low-confidence clip misleads exactly like a
+        # bogus cm number would, so if the scale is suppressed we draw nothing but a
+        # small honest note instead.
+        if cal is not None and cal.quality_flag != "suppress":
+            cyan = (230, 230, 0)
+            if cal.bb is not None:
+                bbp = tuple(int(v) for v in cal.bb)
+                cv2.drawMarker(s, bbp, cyan, cv2.MARKER_CROSS, 18, 2, cv2.LINE_AA)
+                if cal.crank_orbit_r_px:
+                    cv2.circle(s, bbp, int(cal.crank_orbit_r_px), cyan, 1, cv2.LINE_AA)
+            for key in ("left", "right"):
+                w = cal.wheels.get(key)
+                if w is not None:
+                    cv2.circle(s, (int(w[0]), int(w[1])), int(w[2]), (200, 120, 255), 2, cv2.LINE_AA)
+        elif cal is not None and i == bdc:
+            pass  # suppressed: BDC still shows a note (added below in the chips block)
         # HUD
         h, w = s.shape[:2]
         bar = s.copy()
@@ -607,8 +803,10 @@ def main():
         "manual_overrides": overrides,
         "rider": rider, "personalized_advice": personalized,
         "side_diagnostics": side_diag,
+        "calibration": cal.to_json() if cal is not None else None,
+        "metrics": metrics,
     }
-    (out / "report.json").write_text(json.dumps(report, indent=2))
+    (out / "report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     md = ["# Bike fit report", f"- Input: `{args.input}` (measured {side} side, BDC frame {bdc})",
           f"- Overall: **{overall}**"]
     if side_diag["ambiguous"]:
@@ -618,19 +816,37 @@ def main():
     if rider:
         specs = ", ".join(f"{k}={v}" for k, v in rider.items())
         md.append(f"- Rider specs: {specs}")
+    # Core angles that GATE the verdict (the original 5) stay in the degrees table.
+    core = ("knee_flexion_bdc", "torso_from_horiz", "elbow_flexion", "shoulder_angle", "hip_angle_top")
     md += ["", "## Angles (deg) vs target"]
-    for k, v in ang.items():
+    for k in core:
+        if k not in ang:
+            continue
+        v = ang[k]
         lo, hi, _ = ANGLE_TARGETS[k]
         val = f"{v:.0f}" if np.isfinite(v) else "n/a"
-        md.append(f"- {k}: **{val}** (target {lo:.0f}-{hi:.0f}) -> {verdicts[k].upper()}")
+        tag = " (report only)" if k in REPORT_ONLY else ""
+        md.append(f"- {k}: **{val}** (target {lo:.0f}-{hi:.0f}){tag} -> {verdicts[k].upper()}")
     md += ["", "## Do this"] + [f"- {f}" for f in fixes]
     if personalized:
         md += ["", "## Personalized advice (from your specs)"] + [f"- {a}" for a in personalized]
     elif not rider:
         md += ["", "_Tip: pass `--rider rider.yaml` (see rider.example.yaml) for personalized "
                "saddle-height, frame-size and reach advice._"]
-    (out / "report.md").write_text("\n".join(md))
-    print("\n".join(md))
+
+    # ---- Extra 2D measurements: context only, never gate the verdict ----
+    if _HAS_METRICS and (cal is not None or metrics):
+        md += extra_measurements_md(ang, verdicts, metrics, cal)
+
+    (out / "report.md").write_text("\n".join(md), encoding="utf-8")
+    # Console may be cp1252 (Windows); don't let an un-encodable char crash the run --
+    # the report.md file (utf-8 above) is the real artifact.
+    try:
+        print("\n".join(md))
+    except UnicodeEncodeError:
+        import sys
+        sys.stdout.buffer.write(("\n".join(md)).encode("utf-8", "replace"))
+        print()
     print(f"\n[done] overlay (play this): {playable}  |  stills: {out/'stills'}")
 
 

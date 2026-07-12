@@ -18,13 +18,22 @@ env/
 out_*/
 */stills/
 
-# User videos (kept local — never pushed). The videos/README.md guide is kept.
+# User footage (kept local — never pushed). Ignore EVERYTHING the rider drops in
+# videos/ (clips AND photos), keeping only the tracked README guide.
+videos/*
+!videos/README.md
+# Also ignore stray video files anywhere else in the tree (but keep demo clips in files/).
 *.mp4
 *.mov
 *.avi
 *.mkv
 *.webm
+*.jpeg
+*.jpg
+*.heic
 !files/**/*.mp4
+!files/**/*.jpg
+!files/**/*.jpeg
 
 # Personal rider specs (kept local). The rider.example.yaml template is kept.
 rider.yaml

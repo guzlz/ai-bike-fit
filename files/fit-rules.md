@@ -74,6 +74,41 @@ If `bike` mentions tri / TT / time-trial, the road ranges don't apply (TT runs a
 lower torso and different hip/knee). Say so; don't grade a TT setup against road
 numbers.
 
+### 6. Extra side-on metrics (report-only — context, never gate the verdict)
+These come from `bike_calib.py` (a px→mm scale + bottom-bracket from the ankle orbit)
+and `fit_metrics.py`. All are **report-only**: they inform, they never turn the fit
+red. Every cm/mm number is gated by `calibration.quality_flag` (ok | indicative |
+suppress) — if the wheel scale and the crank-orbit scale disagree >10–15% the camera
+isn't square, and cm outputs are downgraded or hidden. Angles are scale-free and
+unaffected.
+
+- **KOPS / saddle setback.** Knee-vs-pedal-spindle horizontal offset at the 3 o'clock
+  crank position (found via the ankle's crank angle). Positive = knee ahead of the
+  spindle (sign is bike-direction-independent). Band ~ −40…+10 mm neutral, but wide
+  (±10–15 mm real resolution) and **report-only** — KOPS is a coincidental proxy, not
+  biomechanics (Sheldon Brown; The Rider Project). **Do not chase KOPS to fix knee
+  pain:** force studies show fore/aft saddle barely changes patellofemoral load (1–4%;
+  Bini & Hume 2012, Menard 2018), and a *rearward* saddle raises knee shear/compression
+  more. So if moving the saddle **forward** relieved anterior knee pain, that's most
+  likely **reach-driven** (shorter effective reach), not a setback-load effect — keep
+  what stopped the pain, treat KOPS as informational.
+- **Knee ROM (BDC↔TDC).** Interior knee angle at top of stroke + the sweep. Very
+  closed at TDC (<58°) hints saddle too low or crank too long. Corroborates BDC (which
+  owns the saddle-height verdict); the sweep is derived so it carries ±4–5°.
+- **Pelvic rock (vertical).** Hip vertical oscillation over the stroke, as % of femur
+  (size-free) + mm. >~4% suggests saddle too high. ⚠️ Only vertical is visible
+  side-on; **true lateral rock needs a rear-view clip**. Sub-~12 mm is below the noise
+  floor — treat as zero.
+- **Effective bar drop.** Saddle-region (hip proxy) to hoods (wrist) vertical drop.
+  Proxy-biased, so trust it as a **relative** number between reshoots and **defer to
+  the torso angle** for the real front-end verdict.
+- **Cockpit reach.** Two reads: a scale-free **arm/torso pixel ratio** (always
+  available, comparable between clips) and an optional **cm estimate** = bike front run
+  (from `frame_reach_mm` + stem) vs the rider's comfortable reach (from `arm_length_cm`
+  + `torso_length_cm`). The cm read needs those specs; if absent, only the ratio shows.
+- **Ankle / foot angle: not computed.** COCO-17 has no toe/foot keypoint, so a true
+  ankle angle is impossible from this clip — the report says so rather than faking it.
+
 ## Reporting honesty
 - Always restate the specs used, so the advice is auditable.
 - Every fix is a *starting point*; recommend a professional fitter for persistent

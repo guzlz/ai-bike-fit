@@ -63,6 +63,8 @@ plain-English report with the exact fix (saddle height, reach).
 
 ```
 analyze_bikefit.py                  # THE tool — pose -> BDC -> angles -> overlay + report
+bike_calib.py                       # bike-part detection + px->mm scale (BB from ankle orbit, wheels via Hough)
+fit_metrics.py                      # extra side-on metrics: KOPS, knee ROM, pelvic rock, bar drop, reach
 PROMPT.md                           # the Claude Code prompt users paste ("easy way")
 README.md                           # public-facing guide (GitHub landing page)
 requirements.txt                    # pip install path (mirrors pyproject deps)
@@ -76,12 +78,39 @@ videos/                             # WHERE THE USER PUTS THEIR CLIP (git-ignore
 LICENSE                             # AGPL-3.0 (required by Ultralytics)
 ```
 
-**Rider specs (optional):** `--rider rider.yaml` feeds body/bike specs (height,
-inseam, bike, frame size, stem, saddle height) into personalized advice via
-`rider_advice()` (LeMond saddle height, frame-size sanity check, reach/cockpit fix
-order). The tool runs fine without it (angles only). `rider.yaml` is git-ignored
-(personal); only `rider.example.yaml` is tracked. In Claude Code, ask the user the
-questions and write `rider.yaml` yourself from `rider.example.yaml`.
+**Generic by design — one person, one bike, via `rider.yaml` only.** NOTHING
+rider- or bike-specific is hard-coded in the code. Every varying input (body dims,
+tyre width, crank length, frame reach/stack) comes from `rider.yaml`. Where a
+scale/reach input is missing, the tool falls back to a nominal default **and says so
+in the report**, marking the affected cm/mm numbers "indicative" — never a silent
+guess. This is what lets anyone run it on any bike.
+
+**Rider specs (optional):** `--rider rider.yaml` feeds body/bike specs into
+`rider_advice()` (LeMond saddle height, frame-size check, reach/cockpit fix order)
+AND into the new cm-based metrics in `fit_metrics.py`. The tool runs fine without it
+(angles only — angles are scale-free and never need specs). `rider.yaml` is
+git-ignored (personal); only `rider.example.yaml` is tracked. In Claude Code, ask the
+user the questions and write `rider.yaml` yourself from `rider.example.yaml`.
+
+**The extra measurements (`bike_calib.py` + `fit_metrics.py`).** Beyond the 5 BDC
+angles, the tool now also reports (all REPORT-ONLY — they add context and NEVER gate
+the green/amber/red verdict): saddle setback / KOPS, knee ROM (BDC↔TDC), vertical
+pelvic rock, effective bar drop, and a cockpit-reach read (a scale-free arm/torso
+ratio + an optional cm estimate from frame reach/stack). Key ideas:
+- **BB from motion, not image detection:** the near ankle orbits the bottom bracket,
+  so a Kåsa+RANSAC circle fit to the ankle track gives the BB (center) and crank+foot
+  orbit radius — immune to the round-mirror / backlit-window traps that fool Hough.
+- **Scale:** PRIMARY from the wheel outer Ø (rim 622mm + 2×`tire_width_mm`, because
+  the camera sees the TYRE edge, not the rim); the ankle orbit is an independent
+  CHECK. If the two disagree >10-15%, the camera isn't square → cm outputs downgrade
+  to indicative/suppressed. `calibration.quality_flag` (ok|indicative|suppress) gates
+  every cm number; angles are untouched.
+- **KOPS sign is facing-independent** (positive = knee ahead of spindle either way).
+- **Ankle/foot angle is deliberately NOT computed** — COCO-17 has no toe keypoint, so
+  the report says so rather than faking it.
+- ⚠️ Like `pick_side`, this is validated in geometry/logic + synthetic unit tests, but
+  the wheel/orbit detection is **not yet confirmed on a real clip** — eyeball the cyan
+  BB/orbit + magenta wheel circles on the overlay before trusting cm numbers.
 
 **Filming quality is everything.** Point users to `files/filming-guide.md` first
 (landscape, dead side-on, hip height, 2.5–4 m). `pick_side()` now prefers the NEAR

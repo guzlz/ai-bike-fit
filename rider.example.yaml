@@ -1,31 +1,52 @@
 # rider.yaml — your body + bike specs for personalized bike-fit advice
 #
-# Copy this file to `rider.yaml` and fill in what you know (every field is
-# optional — the tool still runs without any of them, it just gives more
-# personalized advice with them). Then run:
+# Copy this file to `rider.yaml` and fill in what you know. Every field is optional
+# — the tool always runs — but the more you give, the more it can measure:
+#   • body + saddle height  -> saddle-height & frame-size advice (LeMond)
+#   • tyre width + crank     -> a correct pixels->cm scale (KOPS, reach, bar drop in mm)
+#   • arm + torso lengths    -> a cm estimate of whether the cockpit is too long
+#   • frame reach + stack    -> the bike side of that same reach estimate
+# Any missing scale/reach input isn't guessed silently: the report says it was
+# assumed and marks the affected cm numbers "indicative". Angles never need specs.
 #
 #   uv run python analyze_bikefit.py --input videos/my-ride.mp4 --out out_fit --rider rider.yaml
 #
 # Tip: in Claude Code, just answer its questions — it fills this file for you.
 #
-# Ton rider.yaml — tes mesures corps + vélo pour un conseil personnalisé.
-# Copie ce fichier en `rider.yaml` et remplis ce que tu connais (tout est
-# optionnel). Astuce : dans Claude Code, réponds à ses questions — il remplit
-# ce fichier à ta place.
+# Ton rider.yaml — tes mesures corps + vélo. Copie ce fichier en `rider.yaml` et
+# remplis ce que tu connais (tout est optionnel). Astuce : dans Claude Code, réponds
+# à ses questions — il remplit ce fichier à ta place. Une valeur non renseignée n'est
+# jamais devinée en silence : le rapport le signale et marque les cm concernés
+# « indicatif ». Les angles, eux, n'ont besoin d'aucune mesure.
 
 # --- Body / Corps ---
 height_cm:        # e.g. 179   — your height / ta taille
 inseam_cm:        # e.g. 84    — floor-to-crotch inseam, barefoot / entrejambe pieds nus
                   #              (stand against a wall, book up between the legs,
                   #               measure floor to top of the book)
+arm_length_cm:    # e.g. 60    — shoulder tip (acromion) to wrist, arm straight, no hand /
+                  #              pointe de l'épaule au poignet, bras tendu, sans la main
+torso_length_cm:  # e.g. 50    — acromion to hip joint (greater trochanter), sitting up /
+                  #              creux de l'épaule à l'articulation de la hanche, assis droit
 
 # --- Bike / Vélo ---
-bike:             # e.g. "Scott Addict"  — model / modèle
+bike:             # e.g. "Scott Addict 2020"  — model / modèle
 frame_size_cm:    # e.g. 56    — frame size / taille du cadre
-stem_length_mm:   # e.g. 100   — current stem length / longueur de potence actuelle
-saddle_height_mm: # e.g. 730   — BB center to saddle top along seat tube /
+stem_length_mm:   # e.g. 90    — current stem length (often printed on the stem) /
+                  #              longueur de potence actuelle (souvent gravée dessus)
+saddle_height_mm: # e.g. 740   — BB center to saddle top along seat tube /
                   #              du centre du pédalier au dessus de selle, le long du tube
+tire_width_mm:    # e.g. 28    — printed on the tyre sidewall (700x28C -> 28). Sets the cm
+                  #              scale (outer Ø = 622mm rim + 2x tyre). VARIES per bike —
+                  #              give it! / largeur de pneu, sur le flanc (700x28C -> 28)
+crank_len_mm:     # e.g. 172.5 — engraved on the inside of the crank arm (170/172.5/175) /
+                  #              gravée sur la face interne de la manivelle
+frame_reach_mm:   # e.g. 385   — frame REACH (horizontal BB->head tube top). Look it up on
+                  #              geometrygeeks.bike or the maker's geometry chart for YOUR
+                  #              model+size / le REACH du cadre (voir geometrygeeks.bike)
+frame_stack_mm:   # e.g. 592   — frame STACK (vertical BB->head tube top), same source /
+                  #              le STACK du cadre, même source
 
 # --- Filming / Tournage ---
-camera_distance_m:  # e.g. 3   — distance from camera to bike / distance caméra→vélo
+camera_distance_m:  # e.g. 2.5 — distance from camera to bike / distance caméra→vélo
 discipline:       # road | tt | mtb   (default: road)  — leave blank for road

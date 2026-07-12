@@ -36,20 +36,35 @@ whenever you need something from them.
    Reassure them their video stays local and is never uploaded anywhere.
 
 ## Phase 2 — Collect their specs (ask, then fill the file yourself)
-4. Ask, ONE QUESTION AT A TIME (don't dump a form), for:
+4. Ask, ONE QUESTION AT A TIME (don't dump a form), for each of these. If they don't
+   know a value, say "no worries, we'll skip it" and leave it blank — but tell them
+   what they lose (below), because a blank scale/reach input downgrades the cm
+   numbers to "indicative" (the tool says so; it never guesses silently):
    - height (cm)
-   - inseam (cm) — explain how: barefoot, back to a wall, a book pulled up snug
-     between the legs, measure floor to top of the book.
+   - inseam (cm) — barefoot, back to a wall, a book pulled up snug between the legs,
+     measure floor to top of the book.
+   - arm length (cm) — shoulder tip (acromion) to wrist, arm straight, no hand.
+     (Feeds the cm reach estimate.)
+   - torso length (cm) — acromion to hip joint (the bony bump on the side of the
+     hip), sitting up straight. (Feeds the cm reach estimate.)
    - bike model
    - frame size (cm)
-   - current stem length (mm) — tell them it's often printed on the stem.
-   - saddle height (mm), if they know it (optional)
+   - current stem length (mm) — often printed on the stem.
+   - saddle height (mm), if they know it.
+   - **tyre width (mm)** — on the tyre sidewall, e.g. `700x28C` -> 28. IMPORTANT: this
+     sets the pixels->cm scale (wheel outer Ø = 622mm rim + 2x tyre). It VARIES per
+     bike, so always ask; if skipped the tool assumes 28mm and flags cm as indicative.
+   - crank length (mm) — engraved on the inside of the crank arm (170/172.5/175).
+   - frame reach (mm) and frame stack (mm) — look up THEIR exact model+size on
+     geometrygeeks.bike or the maker's geometry chart. (You, Claude, can web-search
+     these for them.) Needed for the cm cockpit-reach estimate.
    - roughly how far the camera was (m)
    - road bike or TT/tri bike?
-   If they don't know a value, say "no worries, we'll skip it" and leave it blank.
-5. Write their answers into a `rider.yaml` file YOURSELF, using
-   `rider.example.yaml` as the template. The user must not edit any file. `rider.yaml`
-   is git-ignored, so their personal specs never get pushed anywhere.
+5. Write their answers into a `rider.yaml` file YOURSELF, using `rider.example.yaml`
+   as the template. The user must not edit any file. `rider.yaml` is git-ignored, so
+   their personal specs never get pushed anywhere. NOTHING rider- or bike-specific is
+   ever hard-coded in the code — it all comes from `rider.yaml`, so the repo works for
+   any person and any bike.
 
 ## Phase 3 — Run the analysis
 6. Once the video is in `videos/`, run:
